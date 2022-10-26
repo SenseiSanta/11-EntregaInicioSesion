@@ -1,5 +1,5 @@
 /* ============= INICIO DE ROUTEO ============= */
-import express, { request } from 'express';
+import express from 'express';
 const routerInitial = express.Router();
 
 /* ============ Creacion de objeto ============ */
@@ -8,11 +8,25 @@ import { ContenedorFirebase } from "../container/ContenedorFirebase.js";
 import { ContenedorMongoDB } from '../container/ContenedorMongoDB.js';
 import { UsuariosSchema } from '../../models/users.js';
 
-import { productoMock } from '../mocks/producto.mock.js';
-
 const cajaMensajes = new ContenedorFirebase('mensajes');
 const cajaProducto = new ContenedorSQLite('productos');
 const cajaUsuario = new ContenedorMongoDB('usuarios', UsuariosSchema)
+
+/* ================== Mocks ================== */
+import { productoMock } from '../mocks/producto.mock.js';
+
+/* =============== Encriptacion =============== */
+import bcrypt from 'bcrypt'
+
+async function hashPassGenerator (password) {
+    const hashPassword = await bcrypt.hash(password, 10)
+    return hashPassword
+}
+
+async function verifyPassword(user, pass) {
+    const match = await bcrypt.compare(pass, user.password);
+    return match
+}
 
 /* =============== Passport =============== */
 import passport from 'passport';
@@ -22,12 +36,15 @@ const LocalStrategy = Strategy;
 passport.use(new LocalStrategy(
 async function(username, password, done) {
     let usuario = await cajaUsuario.getAll()
-    let existeUsuario = usuario.find(usuario => usuario.username == username && usuario.password == password)
-    console.log(existeUsuario.username)
+    let existeUsuario = usuario.find(usuario => usuario.username == username)
 
         if (!existeUsuario) {
             return done(null, false)
         } else {
+            const match = await verifyPassword(existeUsuario, password)
+            if (!match) {
+                return done(null, false)
+            }
             return done(null, existeUsuario)
         }
     }
@@ -68,19 +85,23 @@ routerInitial.get('/login', async (req, res) => {
     res.status(200).render('login')
 })
 
+routerInitial.get('/login-error', async (req, res) => {
+    res.status(200).render('login-error')
+})
+
 routerInitial.get('/register', async (req, res) => {
     res.status(200).render('register')
 })
 
-routerInitial.post('/login', passport.authenticate('local', {successRedirect: '/', failureRedirect: '/login'}));
+routerInitial.post('/login', passport.authenticate('local', {successRedirect: '/', failureRedirect: '/login-error'}));
 
 routerInitial.post('/register', async (req, res) => {
     const { usuario, password } = req.body;
-    console.log(usuario, password)
     let infoUser = {
         username: usuario,
-        password: password
+        password: await hashPassGenerator(password)
     }
+    console.log(infoUser)
     if (usuario || password) {
         let user = await cajaUsuario.getByUser(usuario)
         console.log(user)
@@ -99,11 +120,10 @@ routerInitial.post('/register', async (req, res) => {
 routerInitial.get('/logout', async (req, res) => {
     req.session.destroy((error) => {
      if (error) {
-      console.log(error);
-      res.json({ err });
+      res.status(402).json(error);
      } else {
       console.log('logout ok');
-      res.redirect('/login');
+      res.status(200).redirect('/login');
      }
     });
    });
@@ -111,7 +131,7 @@ routerInitial.get('/logout', async (req, res) => {
 routerInitial.get('/api/productos-test', auth, async (req, res) => {
     const cajaRandom = new productoMock();
     let productos = cajaRandom.generarDatos()
-    res.render('productos-test', {productos})
+    res.status(200).render('productos-test', {productos})
 })
 
 /* =========== Exportacion de modulo =========== */
