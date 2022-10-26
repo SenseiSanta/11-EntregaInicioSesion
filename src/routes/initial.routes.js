@@ -1,6 +1,5 @@
 /* ============= INICIO DE ROUTEO ============= */
-import express from 'express';
-import fs from 'fs'
+import express, { request } from 'express';
 const routerInitial = express.Router();
 
 /* ============ Creacion de objeto ============ */
@@ -10,7 +9,6 @@ import { ContenedorMongoDB } from '../container/ContenedorMongoDB.js';
 import { UsuariosSchema } from '../../models/users.js';
 
 import { productoMock } from '../mocks/producto.mock.js';
-import { auth } from '../../server.js';
 
 const cajaMensajes = new ContenedorFirebase('mensajes');
 const cajaProducto = new ContenedorSQLite('productos');
@@ -25,6 +23,7 @@ passport.use(new LocalStrategy(
 async function(username, password, done) {
     let usuario = await cajaUsuario.getAll()
     let existeUsuario = usuario.find(usuario => usuario.username == username && usuario.password == password)
+    console.log(existeUsuario.username)
 
         if (!existeUsuario) {
             return done(null, false)
@@ -44,32 +43,40 @@ passport.deserializeUser(async (username, done)=> {
     done(null, existeUsuario)
 })
 
+routerInitial.use(passport.initialize());
+routerInitial.use(passport.session());
+
+/* ============= Middlewares ============= */
+
+function auth (req, res, next) {
+    if (req.isAuthenticated()) {
+      next()
+    } else {
+      res.status(401).redirect('/login')
+    }
+  };
+
 /* ============= Routing y metodos ============= */
 routerInitial.get('/', auth, async (req, res) => {
-    const usuario = req.session.usuario;
+    const datosUsuario = req.user.username;
     const DB_PRODUCTOS = await cajaProducto.listarAll()
     const DB_MENSAJES = await cajaMensajes.getAll()
-    res.render('vista', {DB_PRODUCTOS, DB_MENSAJES, usuario})
+    res.render('vista', {DB_PRODUCTOS, DB_MENSAJES, datosUsuario})
 })
 
 routerInitial.get('/login', async (req, res) => {
-    const { usuario, password } = req.query;
-    if (!usuario || !password) {
-        if (!req.session.contador) {
-            req.session.contador = 1
-            res.render('login') 
-        } else {
-            req.session.contador++
-            res.render('login')
-        }
-    } else {
-        req.session.usuario = usuario
-        res.redirect('/')
-    }
+    res.status(200).render('login')
 })
 
 routerInitial.get('/register', async (req, res) => {
-    const { usuario, password } = req.query;
+    res.status(200).render('register')
+})
+
+routerInitial.post('/login', passport.authenticate('local', {successRedirect: '/', failureRedirect: '/login'}));
+
+routerInitial.post('/register', async (req, res) => {
+    const { usuario, password } = req.body;
+    console.log(usuario, password)
     let infoUser = {
         username: usuario,
         password: password
@@ -78,7 +85,6 @@ routerInitial.get('/register', async (req, res) => {
         let user = await cajaUsuario.getByUser(usuario)
         console.log(user)
         if (user == undefined) {
-            const registerSuccess = 'Usuario creado exitosamente'
             let guardarDatos = await cajaUsuario.save(infoUser)
             res.redirect('/login')
         } else {
@@ -88,7 +94,6 @@ routerInitial.get('/register', async (req, res) => {
     } else {
         res.status(200).render('register')
     }
-        
 })
 
 routerInitial.get('/logout', async (req, res) => {

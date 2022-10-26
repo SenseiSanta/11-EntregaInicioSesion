@@ -31,14 +31,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 app.use('/static', express.static(path.join(__dirname, 'public')));
 
-export function auth (req, res, next) {
-  if (req.session.usuario)
-    return next()
-  else {
-    res.status(401).redirect('/login')
-  }
-}
-
 /*================ Session Setup ================*/
 import connectMongo from 'connect-mongo'
 const MongoStore = connectMongo.create({

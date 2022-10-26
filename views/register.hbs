@@ -6,7 +6,7 @@
             <img src="/static/img/userGenericImg.webp" id="icon" class="loginIcon" alt="User Icon" />
         </div>
         <!-- Register Form -->
-        <form class="regForm">
+        <form class="regForm" action="/register" method="post">
             <input type="text" id="registerUser" name="usuario" placeholder="usuario" required>
             <input type="text" id="registerPassword"  name="password" placeholder="contraseña" required>
             <p class="errorRegisterText"> {{errorRegister}} </p>
@@ -15,3 +15,4 @@
         <p> Ya tienes cuenta? <a href="/login"> Ingresa </a> </p>
     </div>
 </div>
+
